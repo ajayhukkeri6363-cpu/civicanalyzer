@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
-import mysql.connector
+import sqlite3
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 import random
@@ -28,19 +28,12 @@ def get_unique_display_id(cursor):
         cursor.execute("SELECT complaint_id FROM complaints WHERE display_id = %s", (new_id,))
         if not cursor.fetchone():
             return new_id
-
 def get_db_connection():
-    try:
-        connection = mysql.connector.connect(
-            host=os.getenv('DB_HOST', 'localhost'),
-            user=os.getenv('DB_USER', 'root'),
-            password=os.getenv('DB_PASSWORD', ''),
-            database=os.getenv('DB_NAME', 'civic_complaints')
-        )
-        return connection
-    except mysql.connector.Error as err:
-        print(f"Error connecting to MySQL: {err}")
-        return None
+    import sqlite3
+    conn = sqlite3.connect("complaints.db")
+    conn.row_factory = sqlite3.Row
+    return conn
+
 
 # Context processor to make active page and session user available
 @app.context_processor
