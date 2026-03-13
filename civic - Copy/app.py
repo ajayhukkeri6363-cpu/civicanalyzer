@@ -1,6 +1,7 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
-import sqlite3
+import mysql.connector
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 import random
@@ -29,9 +30,18 @@ def get_unique_display_id(cursor):
         if not cursor.fetchone():
             return new_id
 def get_db_connection():
-    import sqlite3
-    conn = sqlite3.connect("complaints.db")
-    conn.row_factory = sqlite3.Row
+    database_url = os.getenv("DATABASE_URL")
+
+    url = urlparse(database_url)
+
+    conn = mysql.connector.connect(
+        host=url.hostname,
+        user=url.username,
+        password=url.password,
+        database=url.path[1:],
+        port=url.port
+    )
+
     return conn
 
 
