@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - Civic Complaint Analyzer{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div>
+        <h2><i class="fa-solid fa-table-list"></i> Admin Dashboard</h2>
+        <p style="color: var(--text-muted);">Manage and track civic issues reported by citizens.</p>
+    </div>
+    
+    <div class="filters-bar">
+        <form action="{{ url_for('dashboard') }}" method="GET" class="filters-form" style="display: flex; gap: 1rem; align-items: flex-end;" data-no-spa>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="area" class="form-label">Filter by Area</label>
+                <input type="text" id="area" name="area" class="form-control" value="{{ area_filter or '' }}" placeholder="Enter area name..." style="width: 200px;">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="issue_type" class="form-label">Filter by Issue Type</label>
+                <select id="issue_type" name="issue_type" class="form-control" style="width: 200px;">
+                    <option value="">All Types</option>
+                    <option value="Road" {% if issue_filter == 'Road' %}selected{% endif %}>Road</option>
+                    <option value="Water" {% if issue_filter == 'Water' %}selected{% endif %}>Water</option>
+                    <option value="Electricity" {% if issue_filter == 'Electricity' %}selected{% endif %}>Electricity</option>
+                    <option value="Garbage" {% if issue_filter == 'Garbage' %}selected{% endif %}>Garbage</option>
+                    <option value="Other" {% if issue_filter == 'Other' %}selected{% endif %}>Other</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="height: 42px;">Filter</button>
+            {% if area_filter or issue_filter %}
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="height: 42px;">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+{% if alerts or clusters %}
+<div class="alerts-section">
+    {% for alert in alerts %}
+    <div class="intelligent-alert high">
+        <div class="intelligent-alert-icon">
+            <i class="fa-solid fa-chart-line"></i>
+        </div>
+        <div class="intelligent-alert-content">
+            <h4>Predictive Alert: {{ alert.risk_level }}</h4>
+            <p><strong>{{ alert.area }}</strong> has recorded <strong>{{ alert.recent_volume }}</strong> complaints in the last 7 days (<strong>+{{ alert.growth }}%</strong> growth). Critical attention is required.</p>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% for cluster in clusters %}
+    <div class="intelligent-alert warning">
+        <div class="intelligent-alert-icon">
+            <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div class="intelligent-alert-content">
+            <h4>Active Issue Cluster Detected</h4>
+            <p><strong>{{ cluster.count }}</strong> active <strong>{{ cluster.issue_type }}</strong> reports found in <strong>{{ cluster.area }}</strong>. Immediate investigation recommended.</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="stat-card">
+        <div class="stat-label"><i class="fa-solid fa-list-ol"></i> Total Complaints</div>
+        <div class="stat-value">{{ stats.total }}</div>
+    </div>
+    <div class="stat-card warning">
+        <div class="stat-label"><i class="fa-solid fa-hourglass-half"></i> Pending / Active</div>
+        <div class="stat-value">{{ stats.pending }}</div>
+    </div>
+    <div class="stat-card success">
+        <div class="stat-label"><i class="fa-solid fa-check-double"></i> Resolved</div>
+        <div class="stat-value">{{ stats.resolved }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label"><i class="fa-solid fa-fire"></i> Primary Issue</div>
+        <div class="stat-value" style="font-size: 1.5rem; margin-top: 0.5rem;">{{ stats.top_issue }}</div>
+    </div>
+</div>
+
+<div class="card">
+    {% if complaints %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Citizen</th>
+                        <th>Issue Area</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Date Submitted</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for complaint in complaints %}
+                    <tr>
+                        <td>{{ complaint.display_id }}</td>
+                        <td>
+                            <strong>{{ complaint.citizen_name }}</strong><br>
+                            <small style="color: var(--text-muted);">{{ complaint.citizen_email }}</small>
+                        </td>
+                        <td>{{ complaint.area }}</td>
+                        <td>
+                            {% if complaint.issue_type == 'Road' %}<i class="fa-solid fa-road issue-icon"></i>
+                            {% elif complaint.issue_type == 'Water' %}<i class="fa-solid fa-faucet-drip issue-icon"></i>
+                            {% elif complaint.issue_type == 'Electricity' %}<i class="fa-solid fa-bolt issue-icon"></i>
+                            {% elif complaint.issue_type == 'Garbage' %}<i class="fa-solid fa-trash-can issue-icon"></i>
+                            {% else %}<i class="fa-solid fa-circle-exclamation issue-icon"></i>{% endif %}
+                            {{ complaint.issue_type }}
+                        </td>
+                        <td>
+                            <div style="max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ complaint.description }}">
+                                {{ complaint.description }}
+                            </div>
+                        </td>
+                        <td>{{ complaint.date_submitted.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <div class="status-manage">
+                                <select class="status-select" 
+                                        onchange="handleStatusChange({{ complaint.complaint_id }}, this.value)"
+                                        data-current="{{ complaint.status }}">
+                                    <option value="Pending" {% if complaint.status == 'Pending' %}selected{% endif %}>Pending</option>
+                                    <option value="In Progress" {% if complaint.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                    <option value="Resolved" {% if complaint.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+                                    <option value="Rejected" {% if complaint.status == 'Rejected' %}selected{% endif %}>Rejected</option>
+                                </select>
+                                {% if complaint.status != 'Resolved' %}
+                                <button class="btn btn-secondary btn-sm" onclick="openResolveModal({{ complaint.complaint_id }}, '{{ complaint.display_id }}')" title="Resolve with notes">
+                                    <i class="fa-solid fa-check"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="text-center" style="padding: 3rem 0;">
+            <i class="fa-regular fa-folder-open" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3>No complaints found matching the criteria.</h3>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Resolve Modal -->
+<div id="resolveModal" class="modal">
+    <div class="modal-content">
+        <h3><i class="fa-solid fa-check-double"></i> Resolve Complaint <span id="modalDisplayId"></span></h3>
+        <p class="mb-2">Enter the actions taken to resolve this issue. This will be visible to the citizen.</p>
+        
+        <form id="resolveForm" data-no-spa>
+            <input type="hidden" id="complaintIdInput">
+            <div class="form-group">
+                <label for="action_taken" class="form-label">Resolution Notes</label>
+                <textarea id="action_taken" name="action_taken" class="form-control" required 
+                          placeholder="e.g., Dispatched crew, fixed leak at 5th and Main."></textarea>
+            </div>
+            <div class="mt-4" style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="submit" id="resolveSubmitBtn" class="btn btn-primary">Verify & Resolve</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function handleStatusChange(complaintId, newStatus) {
+    if (newStatus === 'Resolved') {
+        openResolveModal(complaintId);
+        return;
+    }
+
+    updateStatusAPI(complaintId, newStatus);
+}
+
+function openResolveModal(complaintId, displayId) {
+    document.getElementById('modalDisplayId').textContent = displayId;
+    document.getElementById('complaintIdInput').value = complaintId;
+    document.getElementById('resolveModal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('resolveModal').style.display = 'none';
+}
+
+function updateStatusAPI(complaintId, status, actionTaken = '') {
+    const btn = document.getElementById('resolveSubmitBtn');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+    }
+
+    fetch('/api/admin/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            complaint_id: complaintId,
+            status: status,
+            action_taken: actionTaken
+        })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        return res.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showNotify(data.message, 'success');
+            // If on dashboard, update the row UI
+            const select = document.querySelector(`select[onchange*="${complaintId}"]`);
+            if(select) {
+                select.value = status;
+                // Add a visual flash to show it's updated
+                select.parentElement.parentElement.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
+                setTimeout(() => { 
+                    select.parentElement.parentElement.style.backgroundColor = ''; 
+                }, 1000);
+            }
+            if (status === 'Resolved') {
+                 closeModal();
+            }
+        } else {
+            showNotify(data.message, 'error');
+        }
+    })
+    .catch(err => {
+        console.error('Update failed:', err);
+        showNotify('Failed to update: ' + err.message, 'error');
+    })
+    .finally(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+}
+
+function showNotify(message, type) {
+    const alertContainer = document.querySelector('.alerts-container');
+    if (alertContainer) {
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type}`;
+        alert.innerHTML = `<span><i class="fa-solid ${type === 'success' ? 'fa-check-circle' : 'fa-circle-exclamation'}"></i> ${message}</span>`;
+        alertContainer.appendChild(alert);
+        // Let SPA main.js handle the auto-hide since it's already watching the DOM
+    } else {
+        alert(message);
+    }
+}
+
+document.getElementById('resolveForm').onsubmit = function(e) {
+    e.preventDefault();
+    const id = document.getElementById('complaintIdInput').value;
+    const action = document.getElementById('action_taken').value;
+    
+    updateStatusAPI(id, 'Resolved', action);
+    // Don't close immediately, wait for API success inside updateStatusAPI
+};
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('resolveModal');
+    if (event.target == modal) {
+        closeModal();
+    }
+}
+</script>
+{% endblock %}
